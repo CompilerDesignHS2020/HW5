@@ -1,5 +1,5 @@
 INCLUDES= util,x86,grading,ll
-LIBS = unix,str,nums
+LIBS = unix,str
 SUBMIT := frontend.ml typechecker.ml 
 
 HWNAME := hw05
