@@ -268,7 +268,24 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
       check_field_types c struct_id field_init_exp_list;
       TRef(RStruct(struct_id)); (* return struct type *)
 
-    
+    | Proj(struct_exp, field_id) -> 
+      (* check if struct_exp is a struct *)
+      let struct_name = 
+        match typecheck_exp c struct_exp with
+        | TRef(RStruct(id)) -> id
+        | _ -> type_error e "trying to access field of non struct object"
+      in
+      (* check if field exists in struct *)
+      let field_type =
+        begin match lookup_field_option struct_name field_id c with
+          | None -> type_error struct_exp (field_id^" is not present in struct "^struct_name)
+          | Some field_type -> field_type
+        end
+      in
+      (* return field type *)
+      field_type
+
+
     | _ -> type_error e "typerror sucuk"
 
 and are_subs_of (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty) =
