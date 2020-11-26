@@ -505,13 +505,42 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
    constants, but can't mention other global values *)
 
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_struct_ctxt"
+  let rec process_rem_decls rem_decls =
+    match rem_decls with
+    | [] -> []
+    | Gvdecl(g)::tl -> process_rem_decls tl
+    | Gfdecl(f)::tl -> process_rem_decls tl
+    | Gtdecl(s)::tl -> [s.elt]@(process_rem_decls tl)
+  in
+
+  let new_context = {locals = []; globals = []; structs = process_rem_decls p} in
+  new_context
 
 let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+
+  let rec extract_arg_types rem_args = 
+    match rem_args with
+    | [] -> []
+    | (ty,id)::tl -> [ty]@(extract_arg_types tl)
+  in
+
+  let rec process_rem_decls rem_decls =
+    match rem_decls with
+    | [] -> []
+    | Gvdecl(g)::tl -> process_rem_decls tl
+    | Gtdecl(s)::tl -> process_rem_decls tl
+    | Gfdecl(f)::tl -> 
+    let new_fdecl =   
+      (f.elt.fname, TRef(RFun(extract_arg_types f.elt.args, f.elt.frtyp)))
+    in
+    [new_fdecl]@process_rem_decls tl
+  in
+
+  let new_context = {locals = []; globals = process_rem_decls p; structs = tc.structs} in
+  new_context
 
 let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+  failwith "todo: create_global_ctxt"
 
 
 (* This function implements the |- prog and the H ; G |- prog 
