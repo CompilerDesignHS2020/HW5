@@ -302,25 +302,51 @@ and are_subs_of (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty) =
   are_rem_subs e
 
 and check_field_types (c : Tctxt.t) (struct_name: Ast.id) (struct_init_list: (Ast.id * Ast.exp Ast.node) list) : unit =
-  let rec check_rem_fields rem_fields =
-    match rem_fields with
-    | [] -> ()
-    | (h_id, h_exp)::tl -> 
-      (* check if field exists in struct *)
-      let expected_field_type =
-        begin match lookup_field_option struct_name h_id c with
-          | None -> type_error h_exp (h_id^" is not present in struct "^struct_name)
-          | Some field_type -> field_type
-        end
-      in
-      let present_field_type = typecheck_exp c h_exp in
-      (* check if the type of the initializer expression matches the type of the field *)
-      if subtype c present_field_type expected_field_type then
-        check_rem_fields tl
-      else
-        type_error h_exp (h_id^" does not have the expected type")
-  in
-  check_rem_fields struct_init_list
+
+(*iterate over all struct elems, in a struct_elem list
+if corresponding init_list elem found, "delete" elems from both lists *)
+let rec check_struct_field rem_struct_fields rem_init_elems = 
+  begin match rem_struct_fields with
+    | [] ->  begin match rem_init_elems with
+        | [] -> () (*succeded, both lists empty*)
+        | (init_ty_h, init_node_h)::init_tl -> type_error init_node_h ("init_list has too much elems")
+      end
+    | (struct_field_h)::struct_field_tl -> 
+      begin match rem_init_elems with
+        | [] -> type_error (Ast.no_loc()) ("init_list has unsued elems")
+        | (init_ty_h, init_node_h)::init_tl -> 
+          if subtype c (typecheck_exp c init_node_h) struct_field_h.ftyp then 
+            check_struct_field struct_field_tl init_tl 
+          else 
+            type_error init_node_h ("elem missing in init_list")
+      end
+  end
+in
+
+let compare_struct_fields (arg1:Ast.field) (arg2:Ast.field) =
+  if arg1.fieldName = arg2.fieldName then
+    0
+  else if arg1.fieldName > arg2.fieldName then
+    1
+  else
+    -1
+in
+
+let compare_init_list (id1, exp1) (id2, exp2) =
+  if id1 = id2 then
+    0
+  else if id1 > id2 then
+    1
+  else
+    -1
+in
+
+let sort_struct_elem_list = List.sort compare_struct_fields (lookup_struct struct_name c) 
+in
+let sort_init_list = List.sort compare_init_list struct_init_list in
+check_struct_field sort_struct_elem_list sort_init_list
+
+
 
 (* statements --------------------------------------------------------------- *)
 
