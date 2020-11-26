@@ -136,7 +136,30 @@ and subtype_funarg (c : Tctxt.t) (args1 : Ast.ty list) (args2 : Ast.ty list) : b
     - tc contains the structure definition context
  *)
 let rec typecheck_ty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ty) : unit =
-  failwith "todo: implement typecheck_ty"
+  match t with
+  | TBool -> ()
+  | TInt -> ()
+  | TRef(i) -> typecheck_rty l tc i
+  | TNullRef(i) -> typecheck_rty l tc i
+
+and typecheck_rty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.rty) : unit =
+  match t with
+  | RString -> ()
+  | RArray(i) -> typecheck_ty l tc i
+  | RStruct(i) ->
+      begin match lookup_struct_option i tc with
+        | None -> type_error l ("Struct "^i^" not defined")
+        | Some field_list -> ()
+      end
+  | RFun(args, rty) -> typecheck_fun_args l tc args ;typecheck_retty l tc rty
+
+and typecheck_retty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ret_ty) : unit =
+  match t with
+  | RetVoid -> ()
+  | RetVal(i) -> typecheck_ty l tc i
+
+and typecheck_fun_args (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.rty) : unit =
+
 
 (* typechecking expressions ------------------------------------------------- *)
 (* Typechecks an expression in the typing context c, returns the type of the
