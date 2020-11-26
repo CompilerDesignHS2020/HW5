@@ -158,7 +158,14 @@ and typecheck_retty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ret_ty) : unit =
   | RetVoid -> ()
   | RetVal(i) -> typecheck_ty l tc i
 
-and typecheck_fun_args (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.rty) : unit =
+and typecheck_fun_args (l : 'a Ast.node) (tc : Tctxt.t) (args : Ast.ty list) : unit =
+  let rec check_rem_args rem_args =
+    match rem_args with
+    | [] -> ()
+    | h::tl -> typecheck_ty l tc h; check_rem_args tl
+  in
+
+  check_rem_args args
 
 
 (* typechecking expressions ------------------------------------------------- *)
