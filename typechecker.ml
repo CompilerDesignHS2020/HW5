@@ -194,7 +194,17 @@ and typecheck_fun_args (l : 'a Ast.node) (tc : Tctxt.t) (args : Ast.ty list) : u
 
 *)
 let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
-  failwith "todo: implement typecheck_exp"
+  match e.elt with
+    | CNull(cons) -> typecheck_rty e c cons; TNullRef cons
+    | CBool(b) -> TBool
+    | CInt(i) -> TInt
+    | CStr(s) -> TRef RString
+    | Id(id) -> begin match lookup_option id c with
+      | Some(t) -> t
+      | None -> type_error e ("id of loc var not defined = "^id)
+    end
+
+    | _ -> type_error e "typerror sucuk"
 
 (* statements --------------------------------------------------------------- *)
 
