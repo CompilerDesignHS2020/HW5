@@ -285,8 +285,100 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
       (* return field type *)
       field_type
 
+    
+    | Call(fun_exp, arg_exp_list) ->
+      (* check fun_exp *)
+      let function_type = typecheck_exp c fun_exp in
+
+      let arg_ty_list, ret_ty = 
+        match function_type with
+        | TRef(RFun(arg_tys, rty)) -> arg_tys, rty
+        | _ -> type_error e "no function type"
+      in
+
+      (* check args *)
+      are_subs_of_list c arg_exp_list arg_ty_list fun_exp;
+      
+      (* return retrun type *)
+      let effective_ret_type = 
+        match ret_ty with
+        | RetVal(t) -> t
+        | RetVoid -> type_error e "expression must not return void"
+      in
+      effective_ret_type
+
+    | Bop(binop_type, exp1, exp2) -> 
+
+      begin match binop_type with
+      | Eq | Neq -> 
+        (* get types of expressions *)
+        let ty1 = typecheck_exp c exp1 in
+        let ty2 = typecheck_exp c exp2 in
+
+        if subtype c ty1 ty2 && subtype c ty2 ty1 then
+          ()
+        else
+          type_error e "types of == and != must match"
+        ;
+        TBool
+
+      | _ ->
+
+        (* get types of binop  *)
+        let (t1, t2, res_t) = typ_of_binop binop_type in
+
+        (* check if type of exps are correct *)
+        if subtype c (typecheck_exp c exp1) t1 then
+          ()
+        else
+          type_error e "first expression of binop does not match type of binop"
+        ;
+
+        if subtype c (typecheck_exp c exp2) t2 then
+          ()
+        else
+          type_error e "first expression of binop does not match type of binop"
+        ;
+
+        (* return result type *)
+        res_t
+
+      end
+
+    | Uop(uop_type, exp) -> 
+      (* get types of uop  *)
+      let (t1, res_t) = typ_of_unop uop_type in
+
+      (* check if type of exp is correct *)
+      if subtype c (typecheck_exp c exp) t1 then
+        ()
+      else
+        type_error e "expression of uop does not match type of uop"
+      ;
+
+      (* return result type *)
+      res_t
 
     | _ -> type_error e "typerror sucuk"
+
+and are_subs_of_list (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty list) fun_exp =
+  let rec are_rem_subs_list rem_exps rem_types =
+    match rem_exps with
+    | [] -> ()
+    | h::tl -> 
+      begin match rem_types with
+      | [] -> type_error h "number of function arguments not matching"
+      | h_ty::tl_ty -> 
+        if subtype c (typecheck_exp c h) h_ty then
+          are_rem_subs_list tl tl_ty
+        else
+          type_error h "initialize expression does not match array type"
+      end
+  in
+
+  if List.length e != List.length t then type_error fun_exp "number of function arguments not matching";
+
+  are_rem_subs_list e t
 
 and are_subs_of (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty) =
   let rec are_rem_subs rem_exps =
