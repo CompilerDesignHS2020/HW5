@@ -193,6 +193,8 @@ and typecheck_fun_args (l : 'a Ast.node) (tc : Tctxt.t) (args : Ast.ty list) : u
    a=1} is well typed.  (You should sort the fields to compare them.)
 
 *)
+
+
 let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
   match e.elt with
     | CNull(cons) -> typecheck_rty e c cons; TNullRef cons
@@ -201,10 +203,107 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
     | CStr(s) -> TRef RString
     | Id(id) -> begin match lookup_option id c with
       | Some(t) -> t
-      | None -> type_error e ("id of loc var not defined = "^id)
-    end
+      | None -> 
+        begin match lookup_global_option id c  with
+          | Some(t) -> t
+          | None -> type_error e ("variable not defined: "^id)
+        end
+      end
+    | CArr(arr_ty, init_exp_list) -> 
+      typecheck_ty e c arr_ty; (* check if array's inner type is valid *)
+      are_subs_of c init_exp_list arr_ty; (* check if type of init expressions matches array's inner type *)
+      TRef(RArray(arr_ty)) (* return array type *)
 
+    | NewArr(arr_ty, size_exp, id, init_exp) -> 
+      typecheck_ty e c arr_ty; (* check if array's inner type is valid *)
+      if subtype c (typecheck_exp c size_exp) TInt then (* Check if size expression is of type int *)
+        ()
+      else
+        type_error e ("Array size is not of type int")
+      ; 
+      begin match lookup_option id c with (* check if id is not yet in local scope *)
+        | None -> ()
+        | Some(t) -> type_error e (id^"already definded in local scope")
+      end
+      ;
+      if subtype c (typecheck_exp c init_exp) arr_ty then (* check if init_exp is subtype of inner type *)
+        ()
+      else
+        type_error e ("Initialize expression does not match the array type")
+      ; 
+      TRef(RArray(arr_ty)) (* return array type *)
+
+    | Index(array_exp, index_exp) ->
+      let type_of_arr_exp = typecheck_exp c array_exp in (* Check if array expression is of type array *)
+      let outer_type, inner_type =
+        begin match type_of_arr_exp with
+          | TRef(RArray(i)) -> TRef(RArray(i)), i
+          | _ -> type_error e ("Indexing non array type")
+        end
+      in ();
+      if subtype c (typecheck_exp c index_exp) TInt then (* Check if size expression is of type int *)
+        ()
+      else
+        type_error e ("Array index is not of type int")
+      ;
+      inner_type (* return array type *)
+    
+    | Length(arr_exp) ->
+      let type_of_arr_exp = typecheck_exp c arr_exp in (* Check if array expression is of type array *)
+      begin match type_of_arr_exp with
+        | TRef(RArray(i)) -> ()
+        | _ -> type_error e ("Applying lenght to non array type")
+      end
+      ;
+      TInt;  (* return int type *)
+
+    | CStruct(struct_id, field_init_exp_list) -> 
+      (* check if struct is defined *)
+      begin match lookup_struct_option struct_id c with
+        | None -> type_error e ("struct "^struct_id^" is not defined")
+        | Some t -> ()
+      end
+      ;
+      (* check if they field init types expresstions match *)
+      check_field_types c struct_id field_init_exp_list;
+      TRef(RStruct(struct_id)); (* return struct type *)
+
+    
     | _ -> type_error e "typerror sucuk"
+
+and are_subs_of (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty) =
+  let rec are_rem_subs rem_exps =
+    match rem_exps with
+    | [] -> ()
+    | h::tl -> 
+      if subtype c (typecheck_exp c h) t then
+        are_rem_subs tl
+      else
+        type_error h "initialize expression does not match array type"
+  in
+
+  are_rem_subs e
+
+and check_field_types (c : Tctxt.t) (struct_name: Ast.id) (struct_init_list: (Ast.id * Ast.exp Ast.node) list) : unit =
+  let rec check_rem_fields rem_fields =
+    match rem_fields with
+    | [] -> ()
+    | (h_id, h_exp)::tl -> 
+      (* check if field exists in struct *)
+      let expected_field_type =
+        begin match lookup_field_option struct_name h_id c with
+          | None -> type_error h_exp (h_id^" is not present in struct "^struct_name)
+          | Some field_type -> field_type
+        end
+      in
+      let present_field_type = typecheck_exp c h_exp in
+      (* check if the type of the initializer expression matches the type of the field *)
+      if subtype c present_field_type expected_field_type then
+        check_rem_fields tl
+      else
+        type_error h_exp (h_id^" does not have the expected type")
+  in
+  check_rem_fields struct_init_list
 
 (* statements --------------------------------------------------------------- *)
 
