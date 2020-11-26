@@ -47,11 +47,77 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
       (Don't forget about OCaml's 'and' keyword.)
 *)
 let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
-  failwith "todo: subtype"
+  match t1, t2 with
+  (* Axioms *)
+  | TInt, TInt -> true
+
+  | TBool, TBool -> true
+
+  | TNullRef(i1), TNullRef(i2) -> subtype_ref c i1  i2
+  | TRef(i1), TRef(i2) -> subtype_ref c i1  i2
+  | TRef(i1), TNullRef(i2) -> subtype_ref c i1  i2
+
+  | _ ,_ -> false
 
 (* Decides whether H |-r ref1 <: ref2 *)
 and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
-  failwith "todo: subtype_ref"
+  match t1, t2 with
+  (* Axioms *)
+  | RString, RString -> true
+  | RArray(i1), RArray(i2) -> i1 = i2
+  | RStruct(i1), RStruct(i2) -> subtype_struct c i1 i2
+  | RFun(args1, rt1), RFun(args2, rt2) -> (subtype_funarg c args1 args2) && subtype_ret c rt1 rt2
+  | _ ,_ -> false
+
+and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
+  match t1, t2 with
+  | RetVoid, RetVoid -> true
+  | RetVoid, _ -> false
+  | _ , RetVoid -> false
+  | RetVal(i1), RetVal(i2) -> subtype c i1 i2
+
+
+and subtype_struct (c : Tctxt.t) (t1 : Ast.id) (t2 : Ast.id) : bool =
+  
+  let struct_1_fields = lookup_struct t1 c in
+  let struct_2_fields = lookup_struct t2 c in
+
+  let rec check_fields rem_fields_1 rem_fields_2 = 
+    match rem_fields_2 with
+    | [] -> true
+    | h2::tl2 -> 
+      begin match rem_fields_1 with
+      | [] -> false
+      | h1::tl1 -> 
+        if h1 = h2 then
+          check_fields tl1 tl2
+        else
+          false
+      end
+  in
+
+  check_fields struct_1_fields struct_2_fields
+
+and subtype_funarg (c : Tctxt.t) (args1 : Ast.ty list) (args2 : Ast.ty list) : bool =
+
+  let rec check_rem_args rem_args_1 rem_args_2 =
+    match rem_args_1 with
+    | [] -> true
+    | h1::tl1 -> 
+      begin match rem_args_2 with
+      | h2::tl2 ->
+        if subtype c h1 h2 then
+          check_rem_args tl1 tl2
+        else
+          false
+      | [] -> false
+      end
+  in
+
+  if List.length args1 = List.length args2 then
+    check_rem_args args1 args2
+  else
+    false
 
 
 (* well-formed types -------------------------------------------------------- *)
