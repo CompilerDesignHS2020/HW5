@@ -556,7 +556,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
             type_error s ("condition in for statement is not of type bool")
         | None -> ()
       end;
-      
+    
       begin match stmt_opt with
         | Some(e) -> 
           let _ = typecheck_stmt for_ctxt e to_ret in ()
@@ -565,6 +565,19 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
 
       typecheck_block for_ctxt block to_ret 
       
+    | Cast (ret_ty, id, if_null_exp, then_block, else_block) ->
+      begin match typecheck_exp tc if_null_exp with
+        | TNullRef(rty) -> 
+          let new_ctxt = add_local tc id (TRef(rty)) in
+          let (_, then_does_ret) = typecheck_block new_ctxt then_block to_ret in
+            (tc, then_does_ret)
+        | TRef(t) -> 
+          let (_, else_does_ret) = typecheck_block tc else_block to_ret in
+            (tc, else_does_ret)
+        | _ -> type_error s ("ifq statement is not reference type")
+      end
+        
+    
     | Ret(arg_option) ->
       begin match arg_option with
         | None -> 
