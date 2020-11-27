@@ -438,6 +438,27 @@ in
 let sort_init_list = List.sort compare_init_list struct_init_list in
 check_struct_field sort_struct_elem_list sort_init_list
 
+(* adds variable to loacl context if not perviously defined, returns new context *)
+let add_local_decl cur_txt id node exp = 
+  begin match lookup_local_option id cur_txt with 
+    | Some(_) -> type_error node (id^" previously defined")
+    | None -> let new_ty = typecheck_exp cur_txt exp in
+      add_local cur_txt id new_ty
+  end
+
+
+
+let add_local_decls ctxt node decl_list =
+  let rec add_rem_local_decls cur_ctxt rem_decls =
+    match rem_decls with
+      | [] -> cur_ctxt
+      | h::tl -> 
+    let id, exp = h in
+    let new_ctxt = add_local_decl cur_ctxt id node exp in
+    add_rem_local_decls new_ctxt tl
+  in
+  add_rem_local_decls ctxt decl_list
+
 
 
 (* statements --------------------------------------------------------------- *)
@@ -485,35 +506,11 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
     (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
       
     | Decl(id, exp) ->  
-      begin match lookup_local_option id tc with 
-        | Some(_) -> type_error s ("duplicate id")
-        | None -> let new_ty = typecheck_exp tc exp in
-          (add_local tc id new_ty, false)
-      end
+      (add_local_decl tc id s exp, false)  
+
+
+
       
-    | SCall(fun_exp, arg_list) -> 
-      (* check fun_exp *)
-      let fun_ty = typecheck_exp tc fun_exp in
-
-      let arg_ty_list, ret_ty = 
-        match fun_ty with
-        | TRef(RFun(arg_tys, rty)) -> arg_tys, rty
-        | _ -> type_error s "no function type"
-      in
-
-      (* check args *)
-      are_subs_of_list tc arg_list arg_ty_list fun_exp;
-      
-      (* return return type *)
-      let effective_ret_type = 
-        match ret_ty with
-        | RetVal(t) -> t
-        | RetVoid -> type_error s "expression must not return void"
-      in
-      effective_ret_type
-    
-
-
       
     | Ret(arg_option) ->
       begin match arg_option with
