@@ -501,7 +501,29 @@ let typecheck_tdecl (tc : Tctxt.t) id fs  (l : 'a Ast.node) : unit =
     - checks that the function actually returns
 *)
 let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
-  failwith "todo: typecheck_fdecl"
+  (* add args to local ctxt *)
+  let rec add_args act_ctxt rem_args =
+    begin match rem_args with
+      | [] -> act_ctxt
+      | (ty, id)::tl -> 
+        let new_ctxt = add_local act_ctxt id ty in
+        add_args new_ctxt tl
+    end
+  in
+  let ctxt_args = add_args tc f.args in
+
+  (*if illegal stmt, typecheck_stmt fails*)
+  let rec typecheck_does_ret act_ctxt act_stmt_nodes =
+    begin match act_stmt_nodes with
+      | [] -> type_error l ("fun does not return "^ f.fname)
+      | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h f.frtyp in
+        if does_ret then ()
+        else typecheck_does_ret new_ctxt tl
+    end
+  in
+  typecheck_does_ret ctxt_args f.body
+  
+
 
 (* creating the typchecking context ----------------------------------------- *)
 
