@@ -566,7 +566,20 @@ let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
   new_context
 
 let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_global_ctxt"
+  let rec process_rem_decls rem_decls =
+    match rem_decls with
+    | [] -> []
+    | Gfdecl(f)::tl -> process_rem_decls tl
+    | Gtdecl(s)::tl -> process_rem_decls tl
+    | Gvdecl(g)::tl -> 
+      let new_decl =
+        (g.elt.name, typecheck_exp tc g.elt.init)
+      in
+      [new_decl]@(process_rem_decls tl)
+  in
+
+  let new_context = {locals = []; globals = (tc.globals)@(process_rem_decls p); structs = tc.structs} in
+  new_context
 
 
 (* This function implements the |- prog and the H ; G |- prog 
