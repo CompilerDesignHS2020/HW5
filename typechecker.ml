@@ -473,9 +473,31 @@ check_struct_field sort_struct_elem_list sort_init_list
    - You will probably find it convenient to add a helper function that implements the 
      block typecheck rules.
 *)
-let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.t * bool =
-  failwith "todo: implement typecheck_stmt"
+(*if illegal stmt, typecheck_stmt fails*)
+  
 
+
+let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.t * bool =
+  begin match s.elt with
+    | Assn(lhs, exp) -> 
+      if subtype tc (typecheck_exp tc exp) (typecheck_exp tc lhs) then
+        (tc, false)
+      else
+        type_error s ("ass: rhs not subtype of lhs")
+    (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
+      
+
+    | _ -> (tc, true)
+  end
+
+
+and typecheck_block act_ctxt act_stmt_nodes to_ret =
+    begin match act_stmt_nodes with
+      | [] -> type_error (no_loc()) ("fun does not return ")
+      | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h to_ret in
+        if does_ret then ()
+        else typecheck_block new_ctxt tl to_ret
+    end
 
 (* struct type declarations ------------------------------------------------- *)
 (* Here is an example of how to implement the TYP_TDECLOK rule, which is 
@@ -511,20 +533,8 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
     end
   in
   let ctxt_args = add_args tc f.args in
-
-  (*if illegal stmt, typecheck_stmt fails*)
-  let rec typecheck_does_ret act_ctxt act_stmt_nodes =
-    begin match act_stmt_nodes with
-      | [] -> type_error l ("fun does not return "^ f.fname)
-      | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h f.frtyp in
-        if does_ret then ()
-        else typecheck_does_ret new_ctxt tl
-    end
-  in
-  typecheck_does_ret ctxt_args f.body
+  typecheck_block ctxt_args f.body f.frtyp
   
-
-
 (* creating the typchecking context ----------------------------------------- *)
 
 (* The following functions correspond to the
