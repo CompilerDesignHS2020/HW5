@@ -474,8 +474,6 @@ check_struct_field sort_struct_elem_list sort_init_list
      block typecheck rules.
 *)
 (*if illegal stmt, typecheck_stmt fails*)
-  
-
 
 let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.t * bool =
   begin match s.elt with
@@ -486,6 +484,35 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
         type_error s ("ass: rhs not subtype of lhs")
     (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
       
+    | Decl(id, exp) ->  
+      begin match lookup_local_option id tc with 
+        | Some(_) -> type_error s ("duplicate id")
+        | None -> let new_ty = typecheck_exp tc exp in
+          (add_local tc id new_ty, false)
+      end
+      
+    | SCall(fun_exp, arg_list) -> 
+      (* check fun_exp *)
+      let fun_ty = typecheck_exp tc fun_exp in
+
+      let arg_ty_list, ret_ty = 
+        match fun_ty with
+        | TRef(RFun(arg_tys, rty)) -> arg_tys, rty
+        | _ -> type_error s "no function type"
+      in
+
+      (* check args *)
+      are_subs_of_list tc arg_list arg_ty_list fun_exp;
+      
+      (* return return type *)
+      let effective_ret_type = 
+        match ret_ty with
+        | RetVal(t) -> t
+        | RetVoid -> type_error s "expression must not return void"
+      in
+      effective_ret_type
+    
+
 
     | _ -> (tc, true)
   end
