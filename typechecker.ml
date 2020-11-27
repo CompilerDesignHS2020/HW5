@@ -485,8 +485,25 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
       else
         type_error s ("ass: rhs not subtype of lhs")
     (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
-      
 
+    | For(vdecls, exp_opt, stmt_opt, block) ->
+      (* add vdecls to local context *)
+      
+      
+    | Ret(arg_option) ->
+      begin match arg_option with
+        | None -> 
+          if to_ret = RetVoid then
+            (tc, true)
+          else
+            type_error s ("function should return void")
+        | Some(arg) -> 
+          let ret_type = typecheck_exp tc arg in
+          if to_ret = RetVal(ret_type) then
+            (tc, true)
+          else
+            type_error s ("return type does not match")
+      end
     | _ -> (tc, true)
   end
 
