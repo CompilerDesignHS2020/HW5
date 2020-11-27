@@ -508,8 +508,18 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
 
-
-
+    
+    | If (if_exp, then_block, else_block) ->
+      begin match typecheck_exp tc if_exp with
+        | TBool -> 
+          let (_, then_does_ret) = typecheck_block tc then_block to_ret in
+          let (_, else_does_ret) = typecheck_block tc else_block to_ret in
+          if (then_does_ret && else_does_ret) then
+            (tc, true)
+          else
+            (tc, false)
+        | _ -> type_error s ("if statement is not bool")
+      end
       
       
     | Ret(arg_option) ->
@@ -534,7 +544,11 @@ and typecheck_block act_ctxt act_stmt_nodes to_ret =
     begin match act_stmt_nodes with
       | [] -> type_error (no_loc()) ("fun does not return ")
       | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h to_ret in
-        if does_ret then ()
+        if does_ret then 
+          begin match tl with
+            | [] -> (new_ctxt, true)
+            | _ -> type_error (no_loc()) ("unreachable code after ret stmt")
+          end
         else typecheck_block new_ctxt tl to_ret
     end
 
@@ -572,7 +586,8 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
     end
   in
   let ctxt_args = add_args tc f.args in
-  typecheck_block ctxt_args f.body f.frtyp
+  let (_, does_ret) = (typecheck_block ctxt_args f.body f.frtyp) in
+  if does_ret then () else type_error l "fun does not return"
   
 (* creating the typchecking context ----------------------------------------- *)
 
