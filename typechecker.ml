@@ -520,7 +520,34 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
             (tc, false)
         | _ -> type_error s ("if statement is not bool")
       end
+
+    | While(exp, block) -> 
+      if (typecheck_exp tc exp) = TBool then
+        ()
+      else
+        type_error s ("condition in for statement is not of type bool")
+      ;
+      typecheck_block tc block to_ret 
+
+    | For(vdecls, exp_opt, stmt_opt, block) ->
+      (* add vdecls to local context *)
+      let for_ctxt = add_local_decls tc s vdecls in
+      begin match exp_opt with
+        | Some(e) -> 
+          if (typecheck_exp for_ctxt e) = TBool then
+            ()
+          else
+            type_error s ("condition in for statement is not of type bool")
+        | None -> ()
+      end;
       
+      begin match stmt_opt with
+        | Some(e) -> 
+          let _ = typecheck_stmt for_ctxt e to_ret in ()
+        | None -> ()
+      end;
+
+      typecheck_block for_ctxt block to_ret 
       
     | Ret(arg_option) ->
       begin match arg_option with
