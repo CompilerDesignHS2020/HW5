@@ -359,8 +359,6 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
       (* return result type *)
       res_t
 
-    | _ -> type_error e "typerror sucuk"
-
 and are_subs_of_list (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty list) fun_exp =
   let rec are_rem_subs_list rem_exps rem_types =
     match rem_exps with
