@@ -508,6 +508,24 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
 
+    | SCall(fun_exp, arg_list) -> 
+      (* check fun_exp *)
+      let fun_ty = typecheck_exp tc fun_exp in
+
+      let arg_ty_list, ret_ty = 
+        match fun_ty with
+        | TRef(RFun(arg_tys, rty)) -> arg_tys, rty
+        | _ -> type_error s "no function type"
+      in
+
+      (* check args *)
+      are_subs_of_list tc arg_list arg_ty_list fun_exp;
+      
+      (* return return type *)
+      begin match ret_ty with
+        | RetVal(_) -> type_error s "expression must not return void"
+        | RetVoid -> (tc, false)
+      end
     
     | If (if_exp, then_block, else_block) ->
       begin match typecheck_exp tc if_exp with
