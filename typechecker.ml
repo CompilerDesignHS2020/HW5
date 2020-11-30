@@ -66,7 +66,7 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   | RString, RString -> true
   | RArray(i1), RArray(i2) -> i1 = i2
   | RStruct(i1), RStruct(i2) -> subtype_struct c i1 i2
-  | RFun(args1, rt1), RFun(args2, rt2) -> (subtype_funarg c args1 args2) && subtype_ret c rt1 rt2
+  | RFun(args1, rt1), RFun(args2, rt2) -> (subtype_funarg c args2 args1) && subtype_ret c rt1 rt2
   | _ ,_ -> false
 
 and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
@@ -79,24 +79,24 @@ and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
 
 and subtype_struct (c : Tctxt.t) (t1 : Ast.id) (t2 : Ast.id) : bool =
   
-  let struct_1_fields = lookup_struct t1 c in
-  let struct_2_fields = lookup_struct t2 c in
+  let larger_struct_fields = lookup_struct t1 c in
+  let smaller_struct_fields = lookup_struct t2 c in
 
-  let rec check_fields rem_fields_1 rem_fields_2 = 
-    match rem_fields_2 with
+  let rec check_fields rem_larger_fields rem_smaller_fields = 
+    match rem_smaller_fields with
     | [] -> true
-    | h2::tl2 -> 
-      begin match rem_fields_1 with
+    | h_smaller::tl_smaller-> 
+      begin match rem_larger_fields with
       | [] -> false
-      | h1::tl1 -> 
-        if h1 = h2 then
-          check_fields tl1 tl2
+      | h_larger::tl_larger -> 
+        if h_larger = h_smaller then
+          check_fields tl_larger tl_smaller
         else
           false
       end
   in
 
-  check_fields struct_1_fields struct_2_fields
+  check_fields larger_struct_fields smaller_struct_fields
 
 and subtype_funarg (c : Tctxt.t) (args1 : Ast.ty list) (args2 : Ast.ty list) : bool =
 
@@ -370,7 +370,7 @@ and are_subs_of_list (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty list) fun_
         if subtype c (typecheck_exp c h) h_ty then
           are_rem_subs_list tl tl_ty
         else
-          type_error h "initialize expression does not match array type"
+          type_error h "function arguments do not match"
       end
   in
 
@@ -543,7 +543,8 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
       else
         type_error s ("condition in for statement is not of type bool")
       ;
-      typecheck_block tc block to_ret 
+      let _, _ = typecheck_block tc block to_ret in
+      tc, false
 
     | For(vdecls, exp_opt, stmt_opt, block) ->
       (* add vdecls to local context *)
@@ -563,7 +564,8 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
         | None -> ()
       end;
 
-      typecheck_block for_ctxt block to_ret 
+      let _, _ =  typecheck_block for_ctxt block to_ret  in
+      tc, false
       
     | Cast (ret_ty, id, if_null_exp, then_block, else_block) ->
       begin match typecheck_exp tc if_null_exp with
@@ -586,13 +588,17 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
           else
             type_error s ("function should return void")
         | Some(arg) -> 
-          let ret_type = typecheck_exp tc arg in
-          if to_ret = RetVal(ret_type) then
-            (tc, true)
-          else
-            type_error s ("return type does not match")
+          let act_ret_type = typecheck_exp tc arg in
+          begin match to_ret with
+            | RetVoid -> type_error s ("function returns value, but should return void")
+            | RetVal(to_ret_ty) -> 
+              if subtype tc act_ret_type to_ret_ty then
+                (tc, true)
+              else
+                type_error s ("return type does not match")
+          end
+          
       end
-    | _ -> (tc, true)
   end
 
 
