@@ -502,7 +502,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
       else
         type_error s ("ass: rhs not subtype of lhs")
     (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
-      
+
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
 
@@ -678,17 +678,26 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
    NOTE: global initializers may mention function identifiers as
    constants, but can't mention other global values *)
 
+
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
-  let rec process_rem_decls rem_decls =
-    match rem_decls with
-    | [] -> []
-    | Gvdecl(g)::tl -> process_rem_decls tl
-    | Gfdecl(f)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> [s.elt]@(process_rem_decls tl)
+
+  let rec add_struct_decl struct_decl ctxt =
+    let new_struct_id, new_field_list = struct_decl.elt in
+    begin match lookup_struct_option new_struct_id ctxt with
+      | None ->  add_struct ctxt new_struct_id new_field_list 
+      | Some(id) -> type_error struct_decl ("struct "^new_struct_id^" declared twice")
+    end
   in
 
-  let new_context = {locals = []; globals = []; structs = process_rem_decls p} in
-  new_context
+  let rec process_rem_decls rem_decls cur_ctxt : Tctxt.t =
+    match rem_decls with
+    | [] -> cur_ctxt
+    | Gvdecl(g)::tl -> process_rem_decls tl cur_ctxt
+    | Gfdecl(f)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl (add_struct_decl s cur_ctxt)
+  in
+
+  process_rem_decls p ({locals = []; globals = []; structs = []})
 
 let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
 
@@ -698,36 +707,59 @@ let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
     | (ty,id)::tl -> [ty]@(extract_arg_types tl)
   in
 
-  let rec process_rem_decls rem_decls =
-    match rem_decls with
+  let rec extract_builtin_arg_types rem_args = 
+    match rem_args with
     | [] -> []
-    | Gvdecl(g)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> process_rem_decls tl
+    | h::tl -> [h]@(extract_builtin_arg_types tl)
+  in
+
+  let rec process_rem_decls rem_decls cur_ctxt =
+    match rem_decls with
+    | [] -> cur_ctxt
+    | Gvdecl(g)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl cur_ctxt
     | Gfdecl(f)::tl -> 
-    let new_fdecl =   
+    let id, fun_ty =   
       (f.elt.fname, TRef(RFun(extract_arg_types f.elt.args, f.elt.frtyp)))
     in
-    [new_fdecl]@process_rem_decls tl
+    let new_ctxt =
+      match lookup_global_option id cur_ctxt  with
+      | None -> add_global cur_ctxt id fun_ty
+      | Some(t) -> type_error f ("function "^id^" declared twice")
+    in
+    process_rem_decls tl new_ctxt
   in
 
-  let new_context = {locals = []; globals = process_rem_decls p; structs = tc.structs} in
-  new_context
+  let rec add_builtins (rem_builtins:(Ast.id * (Ast.ty list * Ast.ret_ty)) list) ctxt =
+    match rem_builtins with
+    | [] -> ctxt
+    | (id, (arg_tys, ret_ty))::tl -> 
+      let fun_ty = TRef(RFun(extract_builtin_arg_types arg_tys, ret_ty)) in
+      let new_context = add_global ctxt id fun_ty in
+      add_builtins tl new_context
+  in
+
+  let ctxt_with_builtins = add_builtins builtins tc in
+  process_rem_decls p ctxt_with_builtins
 
 let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  let rec process_rem_decls rem_decls =
+  let rec process_rem_decls rem_decls cur_ctxt =
     match rem_decls with
-    | [] -> []
-    | Gfdecl(f)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> process_rem_decls tl
+    | [] -> cur_ctxt
+    | Gfdecl(f)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl cur_ctxt
     | Gvdecl(g)::tl -> 
-      let new_decl =
-        (g.elt.name, typecheck_exp tc g.elt.init)
+      let id, ty = g.elt.name, (typecheck_exp tc g.elt.init) in
+      let new_ctxt =
+        match lookup_global_option id cur_ctxt  with
+        | None -> add_global cur_ctxt id ty
+        | Some(t) -> type_error g ("global variable "^id^" declared twice")
+        
       in
-      [new_decl]@(process_rem_decls tl)
+      process_rem_decls tl new_ctxt
   in
 
-  let new_context = {locals = []; globals = (tc.globals)@(process_rem_decls p); structs = tc.structs} in
-  new_context
+  process_rem_decls p tc 
 
 
 (* This function implements the |- prog and the H ; G |- prog 
