@@ -276,7 +276,13 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
        of the array struct representation.
   *)
   | Ast.Length e ->
-    failwith "todo:implement Ast.Length case"
+    let arr_ty, ans_id, ans_stream = cmp_exp tc c e in
+    begin match arr_ty with 
+      | Ptr (Struct [_; Array (_,t)]) -> 
+        let id = gensym "length" in
+        I64, Id id, ans_stream@[I(gensym "length", Load(Ptr I64, ans_id))]
+      | _ -> failwith "Length: Cannot take length of non-Array exp"
+    end
 
   | Ast.Index (e, i) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
@@ -356,15 +362,16 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
   | Ast.Index (e, i) ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
     let _, ind_op, ind_code = cmp_exp tc c i in
+    let assert_code = 
+    [I (gensym "assert_array_length" , Ll.Call(Void, Ll.Id("oat_assert_array_length"), 
+    [(arr_ty , arr_op) ; (I64 , ind_op)])) ] in
     let ans_ty = match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> t 
       | _ -> failwith "Index: indexed into non pointer" in
     let ptr_id, tmp_id = gensym "index_ptr", gensym "tmp" in
     ans_ty, (Id ptr_id),
-    arr_code >@ ind_code >@ lift
+    arr_code >@ ind_code >@ assert_code >@ lift
       [ptr_id, Gep(arr_ty, arr_op, [i64_op_of_int 0; i64_op_of_int 1; ind_op]) ]
-
-   
 
   | _ -> failwith "invalid lhs expression"
 
