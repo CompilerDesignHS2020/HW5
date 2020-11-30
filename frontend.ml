@@ -363,7 +363,7 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
     let _, ind_op, ind_code = cmp_exp tc c i in
     let assert_code = 
-    [I (gensym "assert_array_length" , Ll.Call(Void, Ll.Id("oat_assert_array_length"), 
+    [I (gensym "assert_array_length" , Ll.Call(Void, Ll.Gid("oat_assert_array_length"), 
     [(arr_ty , arr_op) ; (I64 , ind_op)])) ] in
     let ans_ty = match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> t 
