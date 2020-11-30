@@ -226,7 +226,7 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
         | Some(t) -> type_error e (id^"already definded in local scope")
       end
       ;
-      if subtype c (typecheck_exp c init_exp) arr_ty then (* check if init_exp is subtype of inner type *)
+      if subtype c (typecheck_exp (add_local c id TInt) init_exp) arr_ty then (* check if init_exp is subtype of inner type *)
         ()
       else
         type_error e ("Initialize expression does not match the array type")
