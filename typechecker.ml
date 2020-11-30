@@ -604,7 +604,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
 
 and typecheck_block act_ctxt act_stmt_nodes to_ret =
     begin match act_stmt_nodes with
-      | [] -> type_error (no_loc()) ("fun does not return ")
+      | [] -> (act_ctxt, false)
       | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h to_ret in
         if does_ret then 
           begin match tl with
