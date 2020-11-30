@@ -66,7 +66,7 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   | RString, RString -> true
   | RArray(i1), RArray(i2) -> i1 = i2
   | RStruct(i1), RStruct(i2) -> subtype_struct c i1 i2
-  | RFun(args1, rt1), RFun(args2, rt2) -> (subtype_funarg c args1 args2) && subtype_ret c rt1 rt2
+  | RFun(args1, rt1), RFun(args2, rt2) -> (subtype_funarg c args2 args1) && subtype_ret c rt1 rt2
   | _ ,_ -> false
 
 and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
@@ -79,24 +79,24 @@ and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
 
 and subtype_struct (c : Tctxt.t) (t1 : Ast.id) (t2 : Ast.id) : bool =
   
-  let struct_1_fields = lookup_struct t1 c in
-  let struct_2_fields = lookup_struct t2 c in
+  let larger_struct_fields = lookup_struct t1 c in
+  let smaller_struct_fields = lookup_struct t2 c in
 
-  let rec check_fields rem_fields_1 rem_fields_2 = 
-    match rem_fields_2 with
+  let rec check_fields rem_larger_fields rem_smaller_fields = 
+    match rem_smaller_fields with
     | [] -> true
-    | h2::tl2 -> 
-      begin match rem_fields_1 with
+    | h_smaller::tl_smaller-> 
+      begin match rem_larger_fields with
       | [] -> false
-      | h1::tl1 -> 
-        if h1 = h2 then
-          check_fields tl1 tl2
+      | h_larger::tl_larger -> 
+        if h_larger = h_smaller then
+          check_fields tl_larger tl_smaller
         else
           false
       end
   in
 
-  check_fields struct_1_fields struct_2_fields
+  check_fields larger_struct_fields smaller_struct_fields
 
 and subtype_funarg (c : Tctxt.t) (args1 : Ast.ty list) (args2 : Ast.ty list) : bool =
 
@@ -226,7 +226,7 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
         | Some(t) -> type_error e (id^"already definded in local scope")
       end
       ;
-      if subtype c (typecheck_exp c init_exp) arr_ty then (* check if init_exp is subtype of inner type *)
+      if subtype c (typecheck_exp (add_local c id TInt) init_exp) arr_ty then (* check if init_exp is subtype of inner type *)
         ()
       else
         type_error e ("Initialize expression does not match the array type")
@@ -359,8 +359,6 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
       (* return result type *)
       res_t
 
-    | _ -> type_error e "typerror sucuk"
-
 and are_subs_of_list (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty list) fun_exp =
   let rec are_rem_subs_list rem_exps rem_types =
     match rem_exps with
@@ -372,7 +370,7 @@ and are_subs_of_list (c : Tctxt.t) (e : Ast.exp node list) (t: Ast.ty list) fun_
         if subtype c (typecheck_exp c h) h_ty then
           are_rem_subs_list tl tl_ty
         else
-          type_error h "initialize expression does not match array type"
+          type_error h "function arguments do not match"
       end
   in
 
@@ -504,7 +502,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
       else
         type_error s ("ass: rhs not subtype of lhs")
     (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
-      
+
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
 
@@ -538,7 +536,37 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
             (tc, false)
         | _ -> type_error s ("if statement is not bool")
       end
+
+    | While(exp, block) -> 
+      if (typecheck_exp tc exp) = TBool then
+        ()
+      else
+        type_error s ("condition in for statement is not of type bool")
+      ;
+      let _, _ = typecheck_block tc block to_ret in
+      tc, false
+
+    | For(vdecls, exp_opt, stmt_opt, block) ->
+      (* add vdecls to local context *)
+      let for_ctxt = add_local_decls tc s vdecls in
+      begin match exp_opt with
+        | Some(e) -> 
+          if (typecheck_exp for_ctxt e) = TBool then
+            ()
+          else
+            type_error s ("condition in for statement is not of type bool")
+        | None -> ()
+      end;
     
+      begin match stmt_opt with
+        | Some(e) -> 
+          let _ = typecheck_stmt for_ctxt e to_ret in ()
+        | None -> ()
+      end;
+
+      let _, _ =  typecheck_block for_ctxt block to_ret  in
+      tc, false
+      
     | Cast (ret_ty, id, if_null_exp, then_block, else_block) ->
       begin match typecheck_exp tc if_null_exp with
         | TNullRef(rty) -> 
@@ -547,11 +575,11 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
             (tc, then_does_ret)
         | TRef(t) -> 
           let (_, else_does_ret) = typecheck_block tc else_block to_ret in
-           (tc, else_does_ret)
+            (tc, else_does_ret)
         | _ -> type_error s ("ifq statement is not reference type")
       end
-      
-      
+        
+    
     | Ret(arg_option) ->
       begin match arg_option with
         | None -> 
@@ -560,19 +588,23 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
           else
             type_error s ("function should return void")
         | Some(arg) -> 
-          let ret_type = typecheck_exp tc arg in
-          if to_ret = RetVal(ret_type) then
-            (tc, true)
-          else
-            type_error s ("return type does not match")
+          let act_ret_type = typecheck_exp tc arg in
+          begin match to_ret with
+            | RetVoid -> type_error s ("function returns value, but should return void")
+            | RetVal(to_ret_ty) -> 
+              if subtype tc act_ret_type to_ret_ty then
+                (tc, true)
+              else
+                type_error s ("return type does not match")
+          end
+          
       end
-    | _ -> (tc, true)
   end
 
 
 and typecheck_block act_ctxt act_stmt_nodes to_ret =
     begin match act_stmt_nodes with
-      | [] -> type_error (no_loc()) ("fun does not return ")
+      | [] -> (act_ctxt, false)
       | h::tl -> let (new_ctxt, does_ret) = typecheck_stmt act_ctxt h to_ret in
         if does_ret then 
           begin match tl with
@@ -646,17 +678,26 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
    NOTE: global initializers may mention function identifiers as
    constants, but can't mention other global values *)
 
+
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
-  let rec process_rem_decls rem_decls =
-    match rem_decls with
-    | [] -> []
-    | Gvdecl(g)::tl -> process_rem_decls tl
-    | Gfdecl(f)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> [s.elt]@(process_rem_decls tl)
+
+  let rec add_struct_decl struct_decl ctxt =
+    let new_struct_id, new_field_list = struct_decl.elt in
+    begin match lookup_struct_option new_struct_id ctxt with
+      | None ->  add_struct ctxt new_struct_id new_field_list 
+      | Some(id) -> type_error struct_decl ("struct "^new_struct_id^" declared twice")
+    end
   in
 
-  let new_context = {locals = []; globals = []; structs = process_rem_decls p} in
-  new_context
+  let rec process_rem_decls rem_decls cur_ctxt : Tctxt.t =
+    match rem_decls with
+    | [] -> cur_ctxt
+    | Gvdecl(g)::tl -> process_rem_decls tl cur_ctxt
+    | Gfdecl(f)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl (add_struct_decl s cur_ctxt)
+  in
+
+  process_rem_decls p ({locals = []; globals = []; structs = []})
 
 let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
 
@@ -666,36 +707,59 @@ let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
     | (ty,id)::tl -> [ty]@(extract_arg_types tl)
   in
 
-  let rec process_rem_decls rem_decls =
-    match rem_decls with
+  let rec extract_builtin_arg_types rem_args = 
+    match rem_args with
     | [] -> []
-    | Gvdecl(g)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> process_rem_decls tl
+    | h::tl -> [h]@(extract_builtin_arg_types tl)
+  in
+
+  let rec process_rem_decls rem_decls cur_ctxt =
+    match rem_decls with
+    | [] -> cur_ctxt
+    | Gvdecl(g)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl cur_ctxt
     | Gfdecl(f)::tl -> 
-    let new_fdecl =   
+    let id, fun_ty =   
       (f.elt.fname, TRef(RFun(extract_arg_types f.elt.args, f.elt.frtyp)))
     in
-    [new_fdecl]@process_rem_decls tl
+    let new_ctxt =
+      match lookup_global_option id cur_ctxt  with
+      | None -> add_global cur_ctxt id fun_ty
+      | Some(t) -> type_error f ("function "^id^" declared twice")
+    in
+    process_rem_decls tl new_ctxt
   in
 
-  let new_context = {locals = []; globals = process_rem_decls p; structs = tc.structs} in
-  new_context
+  let rec add_builtins (rem_builtins:(Ast.id * (Ast.ty list * Ast.ret_ty)) list) ctxt =
+    match rem_builtins with
+    | [] -> ctxt
+    | (id, (arg_tys, ret_ty))::tl -> 
+      let fun_ty = TRef(RFun(extract_builtin_arg_types arg_tys, ret_ty)) in
+      let new_context = add_global ctxt id fun_ty in
+      add_builtins tl new_context
+  in
+
+  let ctxt_with_builtins = add_builtins builtins tc in
+  process_rem_decls p ctxt_with_builtins
 
 let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  let rec process_rem_decls rem_decls =
+  let rec process_rem_decls rem_decls cur_ctxt =
     match rem_decls with
-    | [] -> []
-    | Gfdecl(f)::tl -> process_rem_decls tl
-    | Gtdecl(s)::tl -> process_rem_decls tl
+    | [] -> cur_ctxt
+    | Gfdecl(f)::tl -> process_rem_decls tl cur_ctxt
+    | Gtdecl(s)::tl -> process_rem_decls tl cur_ctxt
     | Gvdecl(g)::tl -> 
-      let new_decl =
-        (g.elt.name, typecheck_exp tc g.elt.init)
+      let id, ty = g.elt.name, (typecheck_exp tc g.elt.init) in
+      let new_ctxt =
+        match lookup_global_option id cur_ctxt  with
+        | None -> add_global cur_ctxt id ty
+        | Some(t) -> type_error g ("global variable "^id^" declared twice")
+        
       in
-      [new_decl]@(process_rem_decls tl)
+      process_rem_decls tl new_ctxt
   in
 
-  let new_context = {locals = []; globals = (tc.globals)@(process_rem_decls p); structs = tc.structs} in
-  new_context
+  process_rem_decls p tc 
 
 
 (* This function implements the |- prog and the H ; G |- prog 
