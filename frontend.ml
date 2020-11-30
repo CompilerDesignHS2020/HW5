@@ -387,9 +387,9 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
     let _, ind_op, ind_code = cmp_exp tc c i in
     let bitcast_id = gensym "bitcast_arr_ty" in
     let assert_code = 
-      [I (bitcast_id, Ll.Bitcast(arr_ty, arr_op, Ptr(I64)))] @
       [I (gensym "oat_assert_array_length" , Ll.Call(Void, Ll.Gid("oat_assert_array_length"), 
-      [(Ptr(I64) , Ll.Id(bitcast_id)); (I64 , ind_op)])) ] 
+      [(Ptr(I64) , Ll.Id(bitcast_id)); (I64 , ind_op)])) ] @
+      [I (bitcast_id, Ll.Bitcast(arr_ty, arr_op, Ptr(I64)))]
     in
     let ans_ty = match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> t 
