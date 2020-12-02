@@ -1,0 +1,47 @@
+/* structs, fun pointers, non nul / null refs */
+
+struct Price {
+    string name;
+    int price
+}
+
+struct Doener_shop {
+    int shop_id;
+    int num_of_seats;
+    bool home_Delivery;
+    Price[]? price_list; 
+    int rate /* from 1 to 5 (stars) */
+}
+
+Doener_shop shop_constructor (int id, int num_seats, bool has_home_delivery, bool has_price_list, int[] prices, int rate) {
+    var new_price_list = Price[] null; /* TODO: how declarate a null array?*/
+    if (has_price_list) {
+        var sucuk_price = new Price { name = "sucuk"; price = prices[0]};
+        var doener_price = new Price { name = "doener"; price = prices[1]};
+        var dueruem_price = new Price { name = "dueruem"; price = prices[2]};
+        new_price_list = new Price[] {sucuk_price, doener_price ,dueruem_price};
+    }
+    return new Doener_shop { shop_id = id; num_of_seats = num_seats; home_delivery = has_home_delivery; price_list = new_price_list; rate = rate};
+}
+
+struct Doener_shop_list {
+    Doener_shop[] shop_list;
+    int num_of_shops
+}
+
+/*sorting criteria:
+1st prio: ranking
+2nd prio: home_delivery possible? -> important in Corona times
+3nd prio: price_list (if availalbe) of sucuk, doener, dueruem 
+4th prio: number of seats
+*/
+Doener_shop_list shop_sorter (Doener_shop_list unsorted_list) {
+    return new Doener_shop_list {shop_list = unsorted_list.shop_list; num_of_shops = 0};
+}
+
+int program(int argc, string[] argv) {
+    /* id, num_seats, has_home_del, has_pricelist, price_list[sucuk, doener, durum], rate*/
+    var first_shop = shop_constructor (0, 20, true, true, (new int[] {15, 10, 9}), 5);
+    print_string("dummy");
+    return 0;
+}
