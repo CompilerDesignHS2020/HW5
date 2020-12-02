@@ -344,7 +344,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     { a[id] = e2}   //e2 = fun(id)
     *)
     let for_loop_stmt = For(init_for_stmt, cnd_for_stmt, inc_for_stmt, block_stmt) in
-    let (_, array_init_code) = cmp_stmt tc new_ctxt Void for_loop_stmt in (*not working *)
+    let (_, array_init_code) = cmp_stmt tc new_ctxt Void (no_loc (for_loop_stmt)) in (*not working *)
     arr_ty, arr_op, size_code >@ arr_ptr_alloca_code >@ temp_store_code >@ alloc_code >@ array_init_code
 
    (* STRUCT TASK: complete this code that compiles struct expressions.
@@ -471,7 +471,24 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
          merge label after either block
   *)
   | Ast.Cast (typ, id, exp, notnull, null) ->
-    failwith "todo: implement Ast.Cast case"
+    let exp_ty, exp_op, exp_code = cmp_exp tc c exp in
+    let ifnull_id = gensym "ifnull_id" in
+    let if_code = I(ifnull_id, Icmp(Eq, exp_ty, exp_op, Null)) in
+    let then_code = cmp_block tc c rt null in
+    (*add id to local scope in else block*)
+    let local_id = gensym "if_not_null_var" in
+    let id_alloc_code = [I(local_id, Alloca(exp_ty))] in 
+    let id_store_code = [I("" , Store(exp_ty, exp_op, Id local_id))] in
+    let new_ctxt = Ctxt.add c id (exp_ty, Id local_id) in
+
+    let else_code = cmp_block tc new_ctxt rt notnull in
+    let lt, le, lm = gensym "then", gensym "else", gensym "merge" in
+    c, exp_code 
+      >:: if_code
+      >:: T(Cbr (Id ifnull_id, lt, le))
+      >:: L lt >@ then_code >:: T(Br lm) 
+      >:: L le >@ id_alloc_code >@ id_store_code >@ else_code >:: T(Br lm) 
+      >:: L lm
 
   | Ast.While (guard, body) ->
      let guard_ty, guard_op, guard_code = cmp_exp tc c guard in
