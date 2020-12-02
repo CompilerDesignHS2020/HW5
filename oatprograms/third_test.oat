@@ -10,7 +10,7 @@ struct Doener_shop {
     int num_of_seats;
     bool home_Delivery;
     Price[]? price_list; 
-    int rate /* from 1 to 5 (stars) */
+    int rating /* from 1 to 5 (stars) */
 }
 
 Doener_shop shop_constructor (int id, int num_seats, bool has_home_delivery, bool has_price_list, int[] prices, int rate) {
@@ -21,7 +21,7 @@ Doener_shop shop_constructor (int id, int num_seats, bool has_home_delivery, boo
         var dueruem_price = new Price { name = "dueruem"; price = prices[2]};
         new_price_list = new Price[] {sucuk_price, doener_price ,dueruem_price};
     }
-    return new Doener_shop { shop_id = id; num_of_seats = num_seats; home_delivery = has_home_delivery; price_list = new_price_list; rate = rate};
+    return new Doener_shop { shop_id = id; num_of_seats = num_seats; home_delivery = has_home_delivery; price_list = new_price_list; rating = rate};
 }
 
 struct Doener_shop_list {
