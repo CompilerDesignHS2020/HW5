@@ -498,10 +498,16 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
   begin match s.elt with
     | Assn(lhs, exp) -> 
       if subtype tc (typecheck_exp tc exp) (typecheck_exp tc lhs) then
-        (tc, false)
+        begin match lhs.elt with
+          | Id(id) -> 
+            begin match lookup_global id tc with
+              | TRef(RFun(_,_)) -> type_error s ("assn: cannot assign glbl fun")
+              | _ -> (tc, false)
+            end    
+          | _ -> (tc, false)
+        end 
       else
-        type_error s ("ass: rhs not subtype of lhs")
-    (* TODO: G⊢lhs lhs:t∈L or lhs not a global function id*)
+        type_error s ("assn: rhs not subtype of lhs")
 
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
