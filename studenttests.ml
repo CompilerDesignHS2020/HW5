@@ -34,7 +34,7 @@ let student_unit_tests = [
 ]
 
 let oat_test = [
-  ("oatprograms/joel.oat", "", "gitter")
+  ("oatprograms/third_test.oat", "", "gitter")
 ]
 
 let provided_tests : suite = [
