@@ -196,7 +196,15 @@ let oat_alloc_array ct (t:Ast.ty) (size:Ll.operand) : Ll.ty * operand * stream =
    - make sure to calculate the correct amount of space to allocate!
 *)
 let oat_alloc_struct ct (id:Ast.id) : Ll.ty * operand * stream =
-  failwith "TODO: oat_alloc_struct"
+  let struct_fields = TypeCtxt.lookup id ct in
+  let size_op = Ll.Const (Int64.of_int @@ List.length struct_fields) in
+  let ans_id, struct_id = gensym "struct", gensym "raw_struct" in
+  let ans_ty = cmp_ty ct @@ TRef (RStruct id ) in
+  let raw_ty = Ptr I64 in
+  ans_ty, Id ans_id,
+  [ I(struct_id, Call(raw_ty, Gid "oat_malloc", [I64, size_op]))
+  ; I(ans_id, Bitcast(raw_ty, Id struct_id, ans_ty) )]
+
 
 
 let str_arr_ty s = Array(1 + String.length s, I8)
@@ -354,12 +362,26 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
        - store the resulting value into the structure
    *)
   | Ast.CStruct (id, l) ->
-    failwith "TODO: Ast.CStruct"
+    let struct_type, struct_ptr, struct_ptr_stream  = oat_alloc_struct tc id in
+    let fill_struct_stream = fill_struct tc c id struct_ptr l in
+    struct_type, struct_ptr, struct_ptr_stream >@ fill_struct_stream
 
   | Ast.Proj (e, id) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "proj" in
     ans_ty, Id ans_id, code >:: I(ans_id, Load(Ptr ans_ty, ptr_op))
+
+
+and fill_struct type_ctxt ctxt id struct_ptr rem_fields =
+  match rem_fields with
+  | [] -> []
+  | (field_id, init_exp)::tl -> 
+    let inti_exp_ty, init_exp_op, init_exp_stream = cmp_exp type_ctxt ctxt init_exp in
+    let field_ptr = gensym "field_ptr" in
+    let struct_type = cmp_ty type_ctxt (TRef(RStruct(id))) in
+    let gep_stream = [I(field_ptr, Gep(struct_type, struct_ptr, [Const(0L); Const(Int64.of_int (TypeCtxt.index_of_field id field_id type_ctxt))]))] in
+    let store_stream = [I(gensym "store_field", Store(cmp_ty type_ctxt (TypeCtxt.lookup_field id field_id type_ctxt) ,init_exp_op,Id(field_ptr)))] in
+    init_exp_stream >@ gep_stream >@ store_stream >@ fill_struct type_ctxt ctxt id struct_ptr tl
 
 
 and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand * stream =
@@ -376,8 +398,16 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
      You will find the TypeCtxt.lookup_field_name function helpful.
   *)
   | Ast.Proj (e, i) ->
-    failwith "todo: Ast.Proj case of cmp_exp_lhs"
+    let struct_ptr_type, struct_ptr, struct_ptr_stream = cmp_exp tc c e in
 
+    let stuct_name = 
+    match struct_ptr_type with
+    | Ptr(Namedt(s)) -> s
+    | _ -> failwith "accessing struct field of non struct ptr" in
+    let field_ptr = gensym "field_ptr" in
+    let struct_type = cmp_ty tc (TRef(RStruct(stuct_name))) in
+    let gep_stream = [I(field_ptr, Gep(struct_type, struct_ptr, [Const(0L); Const(Int64.of_int (TypeCtxt.index_of_field stuct_name i tc))]))] in
+    cmp_ty tc (TypeCtxt.lookup_field stuct_name i tc) , Id(field_ptr), struct_ptr_stream >@ gep_stream
 
   (* ARRAY TASK: Modify this index code to call 'oat_assert_array_length' before doing the 
      GEP calculation. This should be very straightforward, except that you'll need to use a Bitcast.
