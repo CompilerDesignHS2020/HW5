@@ -1,5 +1,11 @@
+struct Color {
+  int red;
+  int green;
+  int blue
+}
+
+global white = new Color { red = 255; green = 254; blue = 253 };
 
 int program(int argc, string[] argv) {
-    var x = new int[3]{i -> i};
-    return 0;
+    return white.red;
 }

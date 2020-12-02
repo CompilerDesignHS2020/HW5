@@ -469,6 +469,32 @@ let hw5_tests : suite = [
 ]
 
 
+
+let student_unit_tests = [
+  "subtype_positive",
+  (fun () ->
+     if Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     then ()
+     else failwith "should not fail"
+  );
+  "subtype_negative",
+  (fun () ->
+     if not @@ Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     then ()
+     else failwith "should not fail"
+  )
+]
+
+let oat_test = [
+  ("oatprograms/joel.oat", "", "gitter")
+]
+
+let provided_tests : suite = [
+  GradedTest("custom_file_test", 5, executed_oat_file oat_test);
+  GradedTest("custom_subtype_tests", 5, unit_tests);
+]
+
+
 let manual_tests : suite = [
     GradedTest ("Additional hidden automated tests", 10,
               [("manually", assert_eq true false)]
@@ -493,4 +519,5 @@ let graded_tests : suite =
   typecheck_tests @
   hw5_tests @
   functionality_tests @
-  manual_tests
+  manual_tests @
+  provided_tests

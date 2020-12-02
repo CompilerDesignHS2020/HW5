@@ -85,7 +85,7 @@ module TypeCtxt = struct
   let empty = []
 
   let add c id bnd = (id, bnd) :: c
-  let lookup id c = List.assoc id c
+  let lookup (id:Ast.id) (c:t) = List.assoc id c
   let lookup_field st_name f_name (c : t) = 
     let rec lookup_field_aux f_name l =
       match l with
@@ -196,7 +196,15 @@ let oat_alloc_array ct (t:Ast.ty) (size:Ll.operand) : Ll.ty * operand * stream =
    - make sure to calculate the correct amount of space to allocate!
 *)
 let oat_alloc_struct ct (id:Ast.id) : Ll.ty * operand * stream =
-  failwith "TODO: oat_alloc_struct"
+  let struct_fields = TypeCtxt.lookup id ct in
+  let size_op = Ll.Const (Int64.of_int @@ List.length struct_fields) in
+  let ans_id, struct_id = gensym "struct", gensym "raw_struct" in
+  let ans_ty = cmp_ty ct @@ TRef (RStruct id ) in
+  let raw_ty = Ptr I64 in
+  ans_ty, Id ans_id,
+  [ I(struct_id, Call(raw_ty, Gid "oat_malloc", [I64, size_op]))] >@
+  [I(ans_id, Bitcast(raw_ty, Id struct_id, ans_ty) )]
+
 
 
 let str_arr_ty s = Array(1 + String.length s, I8)
@@ -354,12 +362,26 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
        - store the resulting value into the structure
    *)
   | Ast.CStruct (id, l) ->
-    failwith "TODO: Ast.CStruct"
+    let struct_type, struct_ptr, struct_ptr_stream  = oat_alloc_struct tc id in
+    let fill_struct_stream = fill_struct tc c id struct_ptr l in
+    struct_type, struct_ptr, struct_ptr_stream >@ fill_struct_stream
 
   | Ast.Proj (e, id) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "proj" in
     ans_ty, Id ans_id, code >:: I(ans_id, Load(Ptr ans_ty, ptr_op))
+
+
+and fill_struct type_ctxt ctxt id struct_ptr rem_fields =
+  match rem_fields with
+  | [] -> []
+  | (field_id, init_exp)::tl -> 
+    let inti_exp_ty, init_exp_op, init_exp_stream = cmp_exp type_ctxt ctxt init_exp in
+    let field_ptr = gensym "field_ptr" in
+    let struct_type = cmp_ty type_ctxt (TRef(RStruct(id))) in
+    let gep_stream = [I(field_ptr, Gep(struct_type, struct_ptr, [Const(0L); Const(Int64.of_int (TypeCtxt.index_of_field id field_id type_ctxt))]))] in
+    let store_stream = [I(gensym "store_field", Store(cmp_ty type_ctxt (TypeCtxt.lookup_field id field_id type_ctxt) ,init_exp_op,Id(field_ptr)))] in
+    init_exp_stream >@ gep_stream >@ store_stream >@ fill_struct type_ctxt ctxt id struct_ptr tl
 
 
 and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand * stream =
@@ -376,8 +398,16 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
      You will find the TypeCtxt.lookup_field_name function helpful.
   *)
   | Ast.Proj (e, i) ->
-    failwith "todo: Ast.Proj case of cmp_exp_lhs"
+    let struct_ptr_type, struct_ptr, struct_ptr_stream = cmp_exp tc c e in
 
+    let stuct_name = 
+    match struct_ptr_type with
+    | Ptr(Namedt(s)) -> s
+    | _ -> failwith "accessing struct field of non struct ptr" in
+    let field_ptr = gensym "field_ptr" in
+    let struct_type = cmp_ty tc (TRef(RStruct(stuct_name))) in
+    let gep_stream = [I(field_ptr, Gep(struct_type, struct_ptr, [Const(0L); Const(Int64.of_int (TypeCtxt.index_of_field stuct_name i tc))]))] in
+    cmp_ty tc (TypeCtxt.lookup_field stuct_name i tc) , Id(field_ptr), struct_ptr_stream >@ gep_stream
 
   (* ARRAY TASK: Modify this index code to call 'oat_assert_array_length' before doing the 
      GEP calculation. This should be very straightforward, except that you'll need to use a Bitcast.
@@ -396,7 +426,7 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
     in
     let ans_ty = match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> t 
-      | _ -> failwith "Index: indexed into non pointer" in
+      | _ -> failwith ("Index: indexed into non pointer, type: "^string_of_ty arr_ty) in
     let ptr_id, tmp_id = gensym "index_ptr", gensym "tmp" in
     ans_ty, (Id ptr_id),
     arr_code >@ ind_code >@ assert_code >@ lift
@@ -472,6 +502,7 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
   *)
   | Ast.Cast (typ, id, exp, notnull, null) ->
     let exp_ty, exp_op, exp_code = cmp_exp tc c exp in
+    print_endline (string_of_ty exp_ty);
     let ifnull_id = gensym "ifnull_id" in
     let if_code = I(ifnull_id, Icmp(Eq, exp_ty, exp_op, Null)) in
     let then_code = cmp_block tc c rt null in
@@ -479,7 +510,7 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
     let local_id = gensym "if_not_null_var" in
     let id_alloc_code = [I(local_id, Alloca(exp_ty))] in 
     let id_store_code = [I("" , Store(exp_ty, exp_op, Id local_id))] in
-    let new_ctxt = Ctxt.add c id (exp_ty, Id local_id) in
+    let new_ctxt = Ctxt.add c id (Ptr exp_ty, Id local_id) in
 
     let else_code = cmp_block tc new_ctxt rt notnull in
     let lt, le, lm = gensym "then", gensym "else", gensym "merge" in
@@ -603,11 +634,24 @@ let cmp_fdecl (tc : TypeCtxt.t) (c:Ctxt.t) (f:Ast.fdecl node) : Ll.fdecl * (Ll.g
   {f_ty; f_param; f_cfg}, globals
 
 
-
 (* Compile a global initializer, returning the resulting LLVMlite global
    declaration, and a list of additional global declarations.
 *)
 let rec cmp_gexp c (tc : TypeCtxt.t) (e:Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.gdecl) list =
+
+  (* struct helpers *)
+  let compile_struct_fields struct_name arg_list =
+    let rec compile_rem_struct_fields arg_list =
+      match arg_list with
+        | [] -> [], []
+        | (field_id, init_exp)::tl -> 
+          let cur_gdecl, cur_additional_list = cmp_gexp c tc init_exp in
+          let rem_gdelc, rem_additional_list = compile_rem_struct_fields tl in 
+          [cur_gdecl]@rem_gdelc, cur_additional_list@rem_additional_list
+    in
+    compile_rem_struct_fields arg_list
+  in
+
   match e.elt with
   | CNull r -> (cmp_ty tc (TNullRef r), GNull), []
   | CBool b -> (I1, (if b then GInt 1L else GInt 0L)), []
@@ -634,9 +678,20 @@ let rec cmp_gexp c (tc : TypeCtxt.t) (e:Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.
 
   (* STRUCT TASK: Complete this code that generates the global initializers for a struct value. *)  
   | CStruct (id, cs) ->
-    failwith "todo: Cstruct case of cmp_gexp"
+    let struct_ptr_type = cmp_ty tc (TRef(RStruct(id))) in
+    let struct_inner_type = match struct_ptr_type with 
+      | Ptr(t) -> t
+      | _ -> failwith "expected ptr type of global struct"
+    in
+    let gid = gensym "global_struct" in
+    let field_init_list, additional_inits_list = compile_struct_fields id cs in
+    (struct_ptr_type, GGid gid), (gid, (struct_inner_type, GStruct(field_init_list)))::additional_inits_list
 
   | _ -> failwith "bad global initializer"
+
+
+
+  
 
 (* Oat internals function context ------------------------------------------- *)
 let internals =
