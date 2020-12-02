@@ -36,12 +36,27 @@ struct Doener_shop_list {
 4th prio: number of seats
 */
 Doener_shop_list shop_sorter (Doener_shop_list unsorted_list) {
-    return new Doener_shop_list {shop_list = unsorted_list.shop_list; num_of_shops = 0};
+    /*
+    for (var i = 0; i < (unsorted_list.num_of_shops); i = i + 1) {
+        print_int(i)
+    }
+    
+    var act_shop_list = new Doener_shop_list{};
+    */
+    
+    return new Doener_shop_list {shop_list = unsorted_list.shop_list; num_of_shops = unsorted_list.num_of_shops};
 }
 
 int program(int argc, string[] argv) {
     /* id, num_seats, has_home_del, has_pricelist, price_list[sucuk, doener, durum], rate*/
     var first_shop = shop_constructor (0, 20, true, true, (new int[] {15, 10, 9}), 5);
-    print_string("dummy");
+    var second_shop = shop_constructor (0, 20, true, true, (new int[] {14, 10, 9}), 3);
+    var third_shop = shop_constructor (0, 20, true, false, (new int[] {0, 0, 0}), 4);
+    var forth_shop = shop_constructor (0, 20, true, true, (new int[] {17, 12, 10}), 2);
+    var naked_shop_list = new Doener_shop[] {first_shop, second_shop, third_shop, forth_shop};
+    var unsorted_list = new Doener_shop_list {shop_list = naked_shop_list; num_of_shops = 4};
+    var sorted_shop_list = shop_sorter(unsorted_list);
+    var ret_arg = sorted_shop_list.shop_list[0].num_of_seats;
+    print_int(ret_arg);
     return 0;
 }
