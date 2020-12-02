@@ -323,7 +323,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     (* alloc temp array, and alloc and temp ptr to array*)
     let array_ptr_id = gensym "array_ptr" in
     let arr_ptr_alloca_code = [I(array_ptr_id, Alloca(arr_ty))] in 
-    let temp_store_code = [I("" , Store(arr_ty, arr_op, Id array_ptr_id))] in (*need ptr of arr_ty? *)
+    let temp_store_code = [I("" , Store(arr_ty, arr_op, Id array_ptr_id))] in 
     (* add temp arr to ctxt *)
     let array_name = gensym "self_initialized_array" in
     let new_ctxt = Ctxt.add c array_name (Ptr arr_ty, Id (array_ptr_id)) in
@@ -343,9 +343,9 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     for(var id = 0; id < length(a); id = id + 1;) 
     { a[id] = e2}   //e2 = fun(id)
     *)
-    let for_loop_stmt = For(init_for_stmt, cnd_for_stmt, inc_for_stmt, block_stmt) in
-    let (_, array_init_code) = cmp_stmt tc new_ctxt Void (no_loc (for_loop_stmt)) in (*not working *)
-    arr_ty, arr_op, size_code >@ arr_ptr_alloca_code >@ temp_store_code >@ alloc_code >@ array_init_code
+    let for_loop_stmt_node = no_loc(For(init_for_stmt, cnd_for_stmt, inc_for_stmt, block_stmt)) in
+    let (_, array_init_code) = cmp_stmt tc new_ctxt Void for_loop_stmt_node in (*not working *)
+    arr_ty, arr_op, size_code >@ alloc_code >@ arr_ptr_alloca_code >@ temp_store_code >@ array_init_code
 
    (* STRUCT TASK: complete this code that compiles struct expressions.
       For each field component of the struct
