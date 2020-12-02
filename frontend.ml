@@ -285,6 +285,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
        of the array struct representation.
   *)
   | Ast.Length e ->
+    print_endline "start of length";
     let arr_ty, ans_id, ans_stream = cmp_exp tc c e in
     begin match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> 
@@ -330,6 +331,14 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
   | Ast.NewArr (elt_ty, e1, id, e2) ->    
     let _, size_op, size_code = cmp_exp tc c e1 in
     (*var a = new int[e1]; *)
+
+    (* create a new temporary variable containing the size of the array and add it to ctxt *)
+    let array_size_ptr = gensym "array_size_ptr" in
+    let array_size_alloca_code = [I(array_size_ptr, Alloca(I64))] in 
+    let array_size_store_code = [I("" , Store(I64, size_op, Id array_size_ptr))] in 
+    let array_size_var = gensym "array_size_var" in
+    let ctxt_with_arr_size = Ctxt.add c array_size_var (Ptr I64, Id (array_size_ptr)) in
+
     let arr_ty, arr_op, alloc_code = oat_alloc_array tc elt_ty size_op in
     (* alloc temp array, and alloc and temp ptr to array*)
     let array_ptr_id = gensym "array_ptr" in
@@ -337,12 +346,12 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     let temp_store_code = [I("" , Store(arr_ty, arr_op, Id array_ptr_id))] in 
     (* add temp arr to ctxt *)
     let array_name = gensym "self_initialized_array" in
-    let new_ctxt = Ctxt.add c array_name (Ptr arr_ty, Id (array_ptr_id)) in
+    let new_ctxt = Ctxt.add ctxt_with_arr_size array_name (Ptr arr_ty, Id (array_ptr_id)) in
     let init_for_stmt = [(id, no_loc(CInt(0L)))] in
     (*new local variable of ty array *)
     let id_node = no_loc(Id id) in
     (*id < length(a)*)
-    let cnd_for_stmt = Some(no_loc(Bop(Lt, id_node, e1))) in
+    let cnd_for_stmt = Some(no_loc(Bop(Lt, id_node, no_loc(Id(array_size_var))))) in
     (*id = id + 1; *)
     let incr_add_stmt = no_loc(Bop(Add, id_node, no_loc(CInt(1L)))) in
     let inc_for_stmt = Some(no_loc(Assn(id_node, incr_add_stmt))) in
@@ -356,7 +365,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     *)
     let for_loop_stmt_node = no_loc(For(init_for_stmt, cnd_for_stmt, inc_for_stmt, block_stmt)) in
     let (_, array_init_code) = cmp_stmt tc new_ctxt Void for_loop_stmt_node in (*not working *)
-    arr_ty, arr_op, size_code >@ alloc_code >@ arr_ptr_alloca_code >@ temp_store_code >@ array_init_code
+    arr_ty, arr_op, size_code >@ array_size_alloca_code >@ array_size_store_code >@ alloc_code >@ arr_ptr_alloca_code >@ temp_store_code >@ array_init_code
 
    (* STRUCT TASK: complete this code that compiles struct expressions.
       For each field component of the struct
@@ -443,11 +452,13 @@ and cmp_call (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) (es:Ast.exp node li
     match t with
     | Ptr (Fun (l, r)) -> l, r
     | _ -> failwith "nonfunction passed to cmp_call" in
+  print_endline "in call";
   let args, args_code = List.fold_right2
       (fun e t (args, code) ->
          let arg_op, arg_code = cmp_exp_as tc c e t in
          (t, arg_op)::args, arg_code @ code
       ) es ts ([],[]) in
+  print_endline "after args";
   let res_id = gensym "result" in
   rt, Id res_id, s >@ args_code >:: I(res_id, Call(rt, op, args))
 

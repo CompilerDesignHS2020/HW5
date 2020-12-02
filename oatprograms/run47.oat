@@ -5,7 +5,12 @@ int f() {
   return a;
 }
 
+int g(){
+  return 1;
+}
+
 int program (int argc, string[] argv) {
-  var b = new int[f()]{i -> i};
-  return a + b[0] + b[1]; 
+  var b = new int[g()]{i->i};
+  print_int(length(b));
+  return 1; 
 }
