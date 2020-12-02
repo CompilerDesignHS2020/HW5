@@ -1,0 +1,59 @@
+struct DonerShop {
+    string name;
+    int price;
+    int ranking
+}
+
+void swap_shops(DonerShop?[]  shops_to_swap, int base , int with){
+    var temp = shops_to_swap[base];
+    shops_to_swap[base] = shops_to_swap[with];
+    shops_to_swap[with] = temp;
+    return;
+}
+
+bool compare_shops(DonerShop shop1, DonerShop shop2){
+    if (shop1.ranking < shop2.ranking){
+        return true;
+    }
+    if (shop1.ranking == shop2.ranking){
+        if (shop1.price > shop2.price){
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
+void sort_shops(DonerShop?[]  unsorted_shops, ((DonerShop, DonerShop) -> bool) compare_function) {
+    for(var start_at = 0; start_at<length(unsorted_shops); start_at=start_at+1;){
+        for(var i = start_at; i<length(unsorted_shops);i = i + 1;){
+            if?(DonerShop base_shop = unsorted_shops[start_at]){
+                if?(DonerShop cur_shop = unsorted_shops[i]){
+                    if(compare_function(base_shop, cur_shop)){
+                        swap_shops(unsorted_shops, start_at, i);
+                    }
+                }
+            }
+            else {
+                swap_shops(unsorted_shops, start_at, i);
+            }
+        }
+    }
+    return;
+}
+
+int program(int argc, string[] argv) {
+    var shops = new DonerShop?[] {DonerShop null ,new DonerShop{name="Oase"; price=9; ranking=3}, new DonerShop{name="Nosh"; price=10; ranking=10}, new DonerShop{name="Sansibar"; price=12; ranking=10} , new DonerShop{name="CityKebab"; price=10; ranking=7}, DonerShop null};
+    print_string("Sorting Doener Shops:\n");
+    sort_shops(shops, compare_shops);
+
+    if?(DonerShop best_shop = shops[0]){
+        print_string("Best Doener Shop is: ");
+        print_string(best_shop.name);
+    } else {
+        print_string("There were only NULL shops :(\n"); 
+    }
+
+    return 0;
+}
