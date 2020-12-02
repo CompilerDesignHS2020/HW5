@@ -289,7 +289,9 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     begin match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> 
         let id = gensym "length" in
-        I64, Id id, ans_stream>@[I(id, Load(Ptr I64, ans_id))]
+        let length_ptr = gensym "length_ptr" in
+        let gep_ins = I(length_ptr,Gep(arr_ty, ans_id, [Const 0L; Const 0L])) in
+        I64, Id id, [gep_ins]>@ans_stream>@[I(id, Load(Ptr I64, Id length_ptr))]
       | _ -> failwith "Length: Cannot take length of non-Array exp"
     end
 
