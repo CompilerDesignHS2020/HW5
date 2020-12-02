@@ -71,7 +71,8 @@ module Ctxt = struct
 
   (* Lookup a binding in the context *)
   let lookup (id:Ast.id) (c:t) : Ll.ty * Ll.operand =
-    List.assoc id c
+    let result = List.assoc id c in
+    result
 
 end
 
@@ -85,7 +86,7 @@ module TypeCtxt = struct
   let empty = []
 
   let add c id bnd = (id, bnd) :: c
-  let lookup (id:Ast.id) (c:t) = List.assoc id c
+  let lookup (id:Ast.id) (c:t) =  List.assoc id c
   let lookup_field st_name f_name (c : t) = 
     let rec lookup_field_aux f_name l =
       match l with
@@ -288,7 +289,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     begin match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> 
         let id = gensym "length" in
-        I64, Id id, ans_stream@[I(gensym "length", Load(Ptr I64, ans_id))]
+        I64, Id id, ans_stream>@[I(id, Load(Ptr I64, ans_id))]
       | _ -> failwith "Length: Cannot take length of non-Array exp"
     end
 
