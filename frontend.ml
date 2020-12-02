@@ -452,13 +452,11 @@ and cmp_call (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) (es:Ast.exp node li
     match t with
     | Ptr (Fun (l, r)) -> l, r
     | _ -> failwith "nonfunction passed to cmp_call" in
-  print_endline "in call";
   let args, args_code = List.fold_right2
       (fun e t (args, code) ->
          let arg_op, arg_code = cmp_exp_as tc c e t in
          (t, arg_op)::args, arg_code @ code
       ) es ts ([],[]) in
-  print_endline "after args";
   let res_id = gensym "result" in
   rt, Id res_id, s >@ args_code >:: I(res_id, Call(rt, op, args))
 

@@ -21,13 +21,13 @@ let subtype_tctxt: Tctxt.t = { locals = []; globals = []; structs = [
 let student_unit_tests = [
   "subtype_positive",
   (fun () ->
-     if Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     if Typechecker.subtype subtype_tctxt (TRef (RStruct "Frodo")) (TRef (RStruct "Hobbit"))
      then ()
      else failwith "should not fail"
   );
   "subtype_negative",
   (fun () ->
-     if not @@ Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     if not @@ Typechecker.subtype subtype_tctxt (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
      then ()
      else failwith "should not fail"
   )
