@@ -505,7 +505,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
               | None ->
                 begin match lookup_global_option id tc with
                 | None -> (tc, false)
-                | Some(TRef(RFun(_,_))) -> type_error s ("assn: cannot assign glbl fun")
+                | Some(TRef(RFun(_,_))) -> type_error s ("assn: Cannot assign global function")
                 | Some(_) -> (tc, false)
               end    
             end
@@ -513,7 +513,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
           | _ -> (tc, false)
         end 
       else
-        type_error s ("assn: rhs not subtype of lhs")
+        type_error s ("assn: Right-hand-side expression not subtype of left-hand-side")
 
     | Decl(id, exp) ->  
       (add_local_decl tc id s exp, false)  
