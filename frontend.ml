@@ -426,7 +426,7 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
     in
     let ans_ty = match arr_ty with 
       | Ptr (Struct [_; Array (_,t)]) -> t 
-      | _ -> failwith "Index: indexed into non pointer" in
+      | _ -> failwith ("Index: indexed into non pointer, type: "^string_of_ty arr_ty) in
     let ptr_id, tmp_id = gensym "index_ptr", gensym "tmp" in
     ans_ty, (Id ptr_id),
     arr_code >@ ind_code >@ assert_code >@ lift
@@ -502,6 +502,7 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
   *)
   | Ast.Cast (typ, id, exp, notnull, null) ->
     let exp_ty, exp_op, exp_code = cmp_exp tc c exp in
+    print_endline (string_of_ty exp_ty);
     let ifnull_id = gensym "ifnull_id" in
     let if_code = I(ifnull_id, Icmp(Eq, exp_ty, exp_op, Null)) in
     let then_code = cmp_block tc c rt null in
@@ -509,7 +510,7 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
     let local_id = gensym "if_not_null_var" in
     let id_alloc_code = [I(local_id, Alloca(exp_ty))] in 
     let id_store_code = [I("" , Store(exp_ty, exp_op, Id local_id))] in
-    let new_ctxt = Ctxt.add c id (exp_ty, Id local_id) in
+    let new_ctxt = Ctxt.add c id (Ptr exp_ty, Id local_id) in
 
     let else_code = cmp_block tc new_ctxt rt notnull in
     let lt, le, lm = gensym "then", gensym "else", gensym "merge" in

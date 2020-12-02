@@ -500,11 +500,16 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
       if subtype tc (typecheck_exp tc exp) (typecheck_exp tc lhs) then
         begin match lhs.elt with
           | Id(id) -> 
-            begin match lookup_global_option id tc with
-              | None -> (tc, false)
-              | Some(TRef(RFun(_,_))) -> type_error s ("assn: cannot assign glbl fun")
-              | Some(_) -> (tc, false)
-            end    
+            begin match lookup_local_option id tc with
+              | Some(t) -> (tc, false)
+              | None ->
+                begin match lookup_global_option id tc with
+                | None -> (tc, false)
+                | Some(TRef(RFun(_,_))) -> type_error s ("assn: cannot assign glbl fun")
+                | Some(_) -> (tc, false)
+              end    
+            end
+
           | _ -> (tc, false)
         end 
       else
