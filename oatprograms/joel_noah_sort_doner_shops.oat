@@ -45,11 +45,9 @@ void sort_shops(DonerShop?[]  unsorted_shops, ((DonerShop, DonerShop) -> bool) c
 
 int program(int argc, string[] argv) {
     var shops = new DonerShop?[] {DonerShop null ,new DonerShop{name="Oase"; price=9; ranking=3}, new DonerShop{name="Nosh"; price=10; ranking=10}, new DonerShop{name="Sansibar"; price=12; ranking=10} , new DonerShop{name="CityKebab"; price=10; ranking=7}, DonerShop null};
-    print_string("Sorting Doener Shops:\n");
     sort_shops(shops, compare_shops);
 
     if?(DonerShop best_shop = shops[0]){
-        print_string("Best Doener Shop is: ");
         print_string(best_shop.name);
     } else {
         print_string("There were only NULL shops :(\n"); 

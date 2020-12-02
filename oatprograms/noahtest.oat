@@ -1,11 +1,6 @@
-struct Color {
-  int red;
-  int green;
-  int blue
-}
 
-global white = new Color { red = 255; green = 254; blue = 253 };
 
 int program(int argc, string[] argv) {
-    return white.red;
+    var a = new int[]{1,2,3};
+    return length(a);
 }

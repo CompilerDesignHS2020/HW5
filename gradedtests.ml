@@ -468,30 +468,41 @@ let hw5_tests : suite = [
 ; GradedTest("fptr tests", 4, executed_oat_file fptr_tests)
 ]
 
+let subtype_tctxt: Tctxt.t = { locals = []; globals = []; structs = [
+  ("Hobbit", [
+      { fieldName = "name"; ftyp = TRef (RString) };
+      { fieldName = "foot_size"; ftyp = TInt };
+    ]);
+  ("Frodo", [
+      { fieldName = "name"; ftyp = TRef (RString) };
+      { fieldName = "foot_size"; ftyp = TInt };
+      { fieldName = "has_ring"; ftyp = TBool };
+    ])
+] }
 
 
 let student_unit_tests = [
   "subtype_positive",
   (fun () ->
-     if Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     if Typechecker.subtype subtype_tctxt (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
      then ()
      else failwith "should not fail"
   );
   "subtype_negative",
   (fun () ->
-     if not @@ Typechecker.subtype Tctxt.empty (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
+     if not @@ Typechecker.subtype subtype_tctxt (TRef (RStruct "Hobbit")) (TRef (RStruct "Frodo"))
      then ()
      else failwith "should not fail"
   )
 ]
 
 let oat_test = [
-  ("oatprograms/third_test.oat", "", "gitter")
+  ("oatprograms/joel_noah_sort_doner_shops.oat", "", "Nosh")
 ]
 
 let provided_tests : suite = [
-  GradedTest("custom_file_test", 5, executed_oat_file oat_test);
-  GradedTest("custom_subtype_tests", 5, unit_tests);
+  GradedTest("oat_test", 5, executed_oat_file oat_test);
+  GradedTest("student_unit_tests", 5, student_unit_tests);
 ]
 
 

@@ -291,7 +291,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
         let id = gensym "length" in
         let length_ptr = gensym "length_ptr" in
         let gep_ins = I(length_ptr,Gep(arr_ty, ans_id, [Const 0L; Const 0L])) in
-        I64, Id id, [gep_ins]>@ans_stream>@[I(id, Load(Ptr I64, Id length_ptr))]
+        I64, Id id, ans_stream>@[gep_ins]>@[I(id, Load(Ptr I64, Id length_ptr))]
       | _ -> failwith "Length: Cannot take length of non-Array exp"
     end
 
@@ -505,7 +505,6 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
   *)
   | Ast.Cast (typ, id, exp, notnull, null) ->
     let exp_ty, exp_op, exp_code = cmp_exp tc c exp in
-    print_endline (string_of_ty exp_ty);
     let ifnull_id = gensym "ifnull_id" in
     let if_code = I(ifnull_id, Icmp(Eq, exp_ty, exp_op, Null)) in
     let then_code = cmp_block tc c rt null in

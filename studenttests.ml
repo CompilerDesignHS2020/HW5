@@ -34,10 +34,10 @@ let student_unit_tests = [
 ]
 
 let oat_test = [
-  ("oatprograms/third_test.oat", "", "gitter")
+  ("oatprograms/joel_noah_sort_doner_shops.oat", "", "Nosh")
 ]
 
 let provided_tests : suite = [
   GradedTest("custom_test", 5, executed_oat_file oat_test);
-  GradedTest("subtype tests", 5, unit_tests);
+  GradedTest("subtype tests", 5, student_unit_tests);
 ]
