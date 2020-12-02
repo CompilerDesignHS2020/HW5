@@ -85,7 +85,7 @@ module TypeCtxt = struct
   let empty = []
 
   let add c id bnd = (id, bnd) :: c
-  let lookup id c = List.assoc id c
+  let lookup (id:Ast.id) (c:t) = List.assoc id c
   let lookup_field st_name f_name (c : t) = 
     let rec lookup_field_aux f_name l =
       match l with
@@ -633,11 +633,24 @@ let cmp_fdecl (tc : TypeCtxt.t) (c:Ctxt.t) (f:Ast.fdecl node) : Ll.fdecl * (Ll.g
   {f_ty; f_param; f_cfg}, globals
 
 
-
 (* Compile a global initializer, returning the resulting LLVMlite global
    declaration, and a list of additional global declarations.
 *)
 let rec cmp_gexp c (tc : TypeCtxt.t) (e:Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.gdecl) list =
+
+  (* struct helpers *)
+  let compile_struct_fields struct_name arg_list =
+    let rec compile_rem_struct_fields arg_list =
+      match arg_list with
+        | [] -> [], []
+        | (field_id, init_exp)::tl -> 
+          let cur_gdecl, cur_additional_list = cmp_gexp c tc init_exp in
+          let rem_gdelc, rem_additional_list = compile_rem_struct_fields tl in 
+          [cur_gdecl]@rem_gdelc, cur_additional_list@rem_additional_list
+    in
+    compile_rem_struct_fields arg_list
+  in
+
   match e.elt with
   | CNull r -> (cmp_ty tc (TNullRef r), GNull), []
   | CBool b -> (I1, (if b then GInt 1L else GInt 0L)), []
@@ -664,9 +677,20 @@ let rec cmp_gexp c (tc : TypeCtxt.t) (e:Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.
 
   (* STRUCT TASK: Complete this code that generates the global initializers for a struct value. *)  
   | CStruct (id, cs) ->
-    failwith "todo: Cstruct case of cmp_gexp"
+    let struct_ptr_type = cmp_ty tc (TRef(RStruct(id))) in
+    let struct_inner_type = match struct_ptr_type with 
+      | Ptr(t) -> t
+      | _ -> failwith "expected ptr type of global struct"
+    in
+    let gid = gensym "global_struct" in
+    let field_init_list, additional_inits_list = compile_struct_fields id cs in
+    (struct_ptr_type, GGid gid), (gid, (struct_inner_type, GStruct(field_init_list)))::additional_inits_list
 
   | _ -> failwith "bad global initializer"
+
+
+
+  
 
 (* Oat internals function context ------------------------------------------- *)
 let internals =
