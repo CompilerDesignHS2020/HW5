@@ -8,7 +8,7 @@ struct Price {
 struct Doener_shop {
     int shop_id;
     int num_of_seats;
-    bool home_Delivery;
+    bool home_delivery;
     Price[]? price_list; 
     int rating /* from 1 to 5 (stars) */
 }
